@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Metronome</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: #1a1a1a;
+            color: #fff;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 600px;
+            width: 100%;
+        }
+
+        .dots-container {
+            display: flex;
+            justify-content: center;
+            gap: 24px;
+            margin-bottom: 60px;
+        }
+
+        .dot {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: #333;
+            transition: none;
+        }
+
+        .dot.active {
+            background: #00ff88;
+            box-shadow: 0 0 30px #00ff88;
+        }
+
+        .dot.accent.active {
+            background: #ff4444;
+            box-shadow: 0 0 30px #ff4444;
+        }
+
+        .bpm-display {
+            text-align: center;
+            font-size: 72px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .counter-display {
+            text-align: center;
+            font-size: 24px;
+            color: #888;
+            margin-bottom: 30px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .sound-selector {
+            display: flex;
+            gap: 24px;
+            justify-content: center;
+            margin-bottom: 30px;
+        }
+
+        .sound-option {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            color: #888;
+        }
+
+        .sound-option input[type="radio"] {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+            accent-color: #00ff88;
+        }
+
+        .sound-option label {
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        .sound-option:has(input:checked) {
+            color: #00ff88;
+        }
+
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .slider-container {
+            width: 100%;
+        }
+
+        .slider {
+            width: 100%;
+            height: 8px;
+            border-radius: 4px;
+            background: #333;
+            outline: none;
+            -webkit-appearance: none;
+            appearance: none;
+        }
+
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: #00ff88;
+            cursor: pointer;
+        }
+
+        .slider::-moz-range-thumb {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: #00ff88;
+            cursor: pointer;
+            border: none;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 16px;
+        }
+
+        button {
+            flex: 1;
+            padding: 20px;
+            font-size: 18px;
+            font-weight: bold;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+
+        button:active {
+            transform: scale(0.98);
+        }
+
+        .start-stop {
+            background: #00ff88;
+            color: #1a1a1a;
+        }
+
+        .start-stop.playing {
+            background: #ff4444;
+        }
+
+        .beats-selector {
+            background: #333;
+            color: #fff;
+        }
+
+        .beats-selector.active {
+            background: #555;
+        }
+
+        @media (max-width: 600px) {
+            .dot {
+                width: 50px;
+                height: 50px;
+            }
+
+            .dots-container {
+                gap: 16px;
+            }
+
+            .bpm-display {
+                font-size: 56px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="dots-container" id="dotsContainer"></div>
+
+        <div class="bpm-display" id="bpmDisplay">120</div>
+
+        <div class="counter-display" id="counterDisplay">Beat: 0 | Measure: 0</div>
+
+        <div class="sound-selector">
+            <div class="sound-option">
+                <input type="radio" id="soundDefault" name="sound" value="default" checked>
+                <label for="soundDefault">Default</label>
+            </div>
+            <div class="sound-option">
+                <input type="radio" id="soundAshley" name="sound" value="ashley">
+                <label for="soundAshley">Ashley</label>
+            </div>
+            <div class="sound-option">
+                <input type="radio" id="soundRunescape" name="sound" value="runescape">
+                <label for="soundRunescape">Runescape</label>
+            </div>
+        </div>
+
+        <div class="controls">
+            <div class="slider-container">
+                <input type="range" min="40" max="208" value="120" class="slider" id="bpmSlider">
+            </div>
+
+            <div class="button-group">
+                <button class="start-stop" id="startStop">START</button>
+            </div>
+
+            <div class="button-group">
+                <button class="beats-selector active" data-beats="2">2</button>
+                <button class="beats-selector" data-beats="3">3</button>
+                <button class="beats-selector active" data-beats="4">4</button>
+                <button class="beats-selector" data-beats="6">6</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Audio context and nodes
+        let audioContext;
+        let isPlaying = false;
+        let currentBeat = 0;
+        let nextNoteTime = 0;
+        let scheduleAheadTime = 0.1; // Schedule 100ms ahead
+        let lookahead = 25; // How frequently to call scheduling function (ms)
+        let timerID;
+        let beatsPerMeasure = 4;
+        let tempo = 120;
+        let totalBeats = 0;
+        let totalMeasures = 0;
+        let currentSound = 'default';
+        let audioBuffers = {
+            ashley: { normal: null, accent: null },
+            runescape: null
+        };
+
+        // DOM elements
+        const bpmSlider = document.getElementById('bpmSlider');
+        const bpmDisplay = document.getElementById('bpmDisplay');
+        const startStopBtn = document.getElementById('startStop');
+        const dotsContainer = document.getElementById('dotsContainer');
+        const beatButtons = document.querySelectorAll('.beats-selector');
+        const counterDisplay = document.getElementById('counterDisplay');
+        const soundRadios = document.querySelectorAll('input[name="sound"]');
+
+        // Initialize audio context on first user interaction
+        function initAudio() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                loadAudioFiles();
+            }
+        }
+
+        // Load audio files
+        async function loadAudioFiles() {
+            try {
+                // Load Ashley sounds
+                const ashleyNormalResponse = await fetch('ashleyBoop.wav');
+                if (!ashleyNormalResponse.ok) {
+                    console.error('Failed to fetch ashleyBoop.wav:', ashleyNormalResponse.status);
+                } else {
+                    const ashleyNormalData = await ashleyNormalResponse.arrayBuffer();
+                    audioBuffers.ashley.normal = await audioContext.decodeAudioData(ashleyNormalData);
+                    console.log('Loaded ashleyBoop.wav');
+                }
+
+                const ashleyAccentResponse = await fetch('ashleyBoop2.wav');
+                if (!ashleyAccentResponse.ok) {
+                    console.error('Failed to fetch ashleyBoop2.wav:', ashleyAccentResponse.status);
+                } else {
+                    const ashleyAccentData = await ashleyAccentResponse.arrayBuffer();
+                    audioBuffers.ashley.accent = await audioContext.decodeAudioData(ashleyAccentData);
+                    console.log('Loaded ashleyBoop2.wav');
+                }
+
+                // Load Runescape sound
+                const runescapeResponse = await fetch('OSRS_Wood_Chop_Hit_3.mp3');
+                if (!runescapeResponse.ok) {
+                    console.error('Failed to fetch OSRS_Wood_Chop_Hit_3.mp3:', runescapeResponse.status);
+                } else {
+                    const runescapeData = await runescapeResponse.arrayBuffer();
+                    audioBuffers.runescape = await audioContext.decodeAudioData(runescapeData);
+                    console.log('Loaded OSRS_Wood_Chop_Hit_3.mp3');
+                }
+            } catch (error) {
+                console.error('Error loading audio files:', error);
+            }
+        }
+
+        // Create click sound
+        function playClick(time, isAccent) {
+            if (currentSound === 'default') {
+                // Synthesized sound
+                const osc = audioContext.createOscillator();
+                const gain = audioContext.createGain();
+
+                osc.connect(gain);
+                gain.connect(audioContext.destination);
+
+                osc.frequency.value = isAccent ? 1200 : 800;
+                gain.gain.value = 0.3;
+
+                osc.start(time);
+                osc.stop(time + 0.05);
+
+                gain.gain.exponentialRampToValueAtTime(0.001, time + 0.05);
+            } else if (currentSound === 'ashley') {
+                // Play audio buffer
+                const buffer = isAccent ? audioBuffers.ashley.accent : audioBuffers.ashley.normal;
+                if (buffer) {
+                    const source = audioContext.createBufferSource();
+                    const gain = audioContext.createGain();
+                    source.buffer = buffer;
+                    source.connect(gain);
+                    gain.connect(audioContext.destination);
+                    gain.gain.value = 1.0;
+                    source.start(time);
+                } else {
+                    console.warn('Ashley buffer not loaded:', isAccent ? 'accent' : 'normal');
+                }
+            } else if (currentSound === 'runescape') {
+                // Play Runescape wood chop sound
+                const buffer = audioBuffers.runescape;
+                if (buffer) {
+                    const source = audioContext.createBufferSource();
+                    const gain = audioContext.createGain();
+                    source.buffer = buffer;
+                    source.connect(gain);
+                    gain.connect(audioContext.destination);
+                    gain.gain.value = isAccent ? 1.2 : 0.8;
+                    source.start(time);
+                } else {
+                    console.warn('Runescape buffer not loaded');
+                }
+            }
+        }
+
+        // Schedule visual update
+        function scheduleVisualUpdate(beatNumber, time) {
+            const delay = (time - audioContext.currentTime) * 1000;
+
+            setTimeout(() => {
+                updateDots(beatNumber);
+                updateCounter();
+            }, delay);
+        }
+
+        // Update dot visuals
+        function updateDots(beatNumber) {
+            const dots = dotsContainer.querySelectorAll('.dot');
+            dots.forEach((dot, index) => {
+                dot.classList.remove('active');
+                if (index === beatNumber) {
+                    dot.classList.add('active');
+                }
+            });
+        }
+
+        // Update counter display
+        function updateCounter() {
+            counterDisplay.textContent = `Beat: ${totalBeats} | Measure: ${totalMeasures}`;
+        }
+
+        // Schedule notes
+        function scheduler() {
+            while (nextNoteTime < audioContext.currentTime + scheduleAheadTime) {
+                const isAccent = currentBeat === beatsPerMeasure - 1;
+                playClick(nextNoteTime, isAccent);
+                scheduleVisualUpdate(currentBeat, nextNoteTime);
+
+                nextNote();
+            }
+        }
+
+        // Advance beat
+        function nextNote() {
+            const secondsPerBeat = 60.0 / tempo;
+            nextNoteTime += secondsPerBeat;
+
+            totalBeats++;
+            currentBeat++;
+            if (currentBeat >= beatsPerMeasure) {
+                currentBeat = 0;
+                totalMeasures++;
+            }
+        }
+
+        // Start/stop metronome
+        function togglePlay() {
+            initAudio();
+
+            isPlaying = !isPlaying;
+
+            if (isPlaying) {
+                currentBeat = 0;
+                totalBeats = 0;
+                totalMeasures = 0;
+                updateCounter();
+                nextNoteTime = audioContext.currentTime;
+                timerID = setInterval(scheduler, lookahead);
+                startStopBtn.textContent = 'STOP';
+                startStopBtn.classList.add('playing');
+            } else {
+                clearInterval(timerID);
+                startStopBtn.textContent = 'START';
+                startStopBtn.classList.remove('playing');
+
+                // Clear all dots
+                const dots = dotsContainer.querySelectorAll('.dot');
+                dots.forEach(dot => dot.classList.remove('active'));
+            }
+        }
+
+        // Update BPM
+        function updateBPM(value) {
+            tempo = parseInt(value);
+            bpmDisplay.textContent = tempo;
+        }
+
+        // Create dots
+        function createDots(count) {
+            dotsContainer.innerHTML = '';
+            for (let i = 0; i < count; i++) {
+                const dot = document.createElement('div');
+                dot.className = 'dot';
+                if (i === count - 1) {
+                    dot.classList.add('accent');
+                }
+                dotsContainer.appendChild(dot);
+            }
+        }
+
+        // Update beats per measure
+        function updateBeats(beats) {
+            if (isPlaying) {
+                togglePlay(); // Stop if playing
+            }
+
+            beatsPerMeasure = beats;
+            currentBeat = 0;
+            createDots(beats);
+
+            // Update button states
+            beatButtons.forEach(btn => {
+                btn.classList.toggle('active', parseInt(btn.dataset.beats) === beats);
+            });
+        }
+
+        // Event listeners
+        bpmSlider.addEventListener('input', (e) => updateBPM(e.target.value));
+        startStopBtn.addEventListener('click', togglePlay);
+
+        beatButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                updateBeats(parseInt(btn.dataset.beats));
+            });
+        });
+
+        soundRadios.forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                currentSound = e.target.value;
+            });
+        });
+
+        // Initialize
+        createDots(beatsPerMeasure);
+    </script>
+</body>
+</html>
