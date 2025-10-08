@@ -249,7 +249,7 @@
         let currentSound = 'default';
         let audioBuffers = {
             ashley: { normal: null, accent: null },
-            runescape: null
+            runescape: { normal: null, accent: null }
         };
 
         // DOM elements
@@ -291,14 +291,23 @@
                     console.log('Loaded ashleyBoop2.wav');
                 }
 
-                // Load Runescape sound
-                const runescapeResponse = await fetch('OSRS_Wood_Chop_Hit_3.mp3');
-                if (!runescapeResponse.ok) {
-                    console.error('Failed to fetch OSRS_Wood_Chop_Hit_3.mp3:', runescapeResponse.status);
+                // Load Runescape sounds
+                const runescapeNormalResponse = await fetch('OSRS_Wood_Chop_Hit_3.mp3');
+                if (!runescapeNormalResponse.ok) {
+                    console.error('Failed to fetch OSRS_Wood_Chop_Hit_3.mp3:', runescapeNormalResponse.status);
                 } else {
-                    const runescapeData = await runescapeResponse.arrayBuffer();
-                    audioBuffers.runescape = await audioContext.decodeAudioData(runescapeData);
+                    const runescapeNormalData = await runescapeNormalResponse.arrayBuffer();
+                    audioBuffers.runescape.normal = await audioContext.decodeAudioData(runescapeNormalData);
                     console.log('Loaded OSRS_Wood_Chop_Hit_3.mp3');
+                }
+
+                const runescapeAccentResponse = await fetch('OSRS_Rock_Pick_Hit.mp3');
+                if (!runescapeAccentResponse.ok) {
+                    console.error('Failed to fetch OSRS_Rock_Pick_Hit.mp3:', runescapeAccentResponse.status);
+                } else {
+                    const runescapeAccentData = await runescapeAccentResponse.arrayBuffer();
+                    audioBuffers.runescape.accent = await audioContext.decodeAudioData(runescapeAccentData);
+                    console.log('Loaded OSRS_Rock_Pick_Hit.mp3');
                 }
             } catch (error) {
                 console.error('Error loading audio files:', error);
@@ -337,18 +346,18 @@
                     console.warn('Ashley buffer not loaded:', isAccent ? 'accent' : 'normal');
                 }
             } else if (currentSound === 'runescape') {
-                // Play Runescape wood chop sound
-                const buffer = audioBuffers.runescape;
+                // Play Runescape sound (rock pick for accent, wood chop for normal)
+                const buffer = isAccent ? audioBuffers.runescape.accent : audioBuffers.runescape.normal;
                 if (buffer) {
                     const source = audioContext.createBufferSource();
                     const gain = audioContext.createGain();
                     source.buffer = buffer;
                     source.connect(gain);
                     gain.connect(audioContext.destination);
-                    gain.gain.value = isAccent ? 1.2 : 0.8;
+                    gain.gain.value = 1.0;
                     source.start(time);
                 } else {
-                    console.warn('Runescape buffer not loaded');
+                    console.warn('Runescape buffer not loaded:', isAccent ? 'accent' : 'normal');
                 }
             }
         }
